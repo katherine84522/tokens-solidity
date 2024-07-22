@@ -89,7 +89,10 @@ contract ERC20 {
         uint256 newValue = allowances[from][to] - value;
         allowances[from][to] = newValue;
 
-        payable(from).transfer(to, value);
+        balances[from] -= value;
+        balances[to] += value;
+
+        return true;
     }
 
 }
