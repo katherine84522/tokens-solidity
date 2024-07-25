@@ -3,16 +3,15 @@ pragma solidity ^0.8.24;
 // Uncomment this line to use console.log
 // import "hardhat/console.sol";
 
-contract ERC20 {
-    string public name;
-    string public symbol;
-    uint8 public decimals = 18;
-    uint256 public totalSupply = 0;
-    mapping(address => uint256) balances;
-    mapping(address => mapping(address => uint256)) allowances;
+contract ERC721 {
 
-    event Transfer(address from, address to, uint value);
-    event Approval(address owner, address spender, uint value);
+
+    mapping(address => uint256[]) balances;
+    mapping(uint256 => address) tokenOwners;
+    mapping(address => mapping(uint256 => address)) approvals; //uint256 is tokenID
+    mapping(address => mapping(address => bool)) operators;
+    uint256 tokenAmount;
+
 
     constructor(string name_, string symbol_) {
 
@@ -20,79 +19,81 @@ contract ERC20 {
         symbol = symbol_;
     }
 
-    function name() public returns(string){
+    function balanceOf(address owner) public view returns(uint){
 
-        return name;
+        return balances[owner];
     }
 
-    function symbol() public returns(string){
+    function ownerOf(uint256 tokenId) public view returns(address){
 
-        return symbol;
+        require(tokenOwners[tokenId]);
+
+        return tokenOwners[tokenId];
     }
 
-    function decimals() public returns (uint8){
-
-        return decimals;
-    }
-
-    function totalSupply() public returns(uint256){
-
-        return totalSupply;
-    }
-
-    function balanceOf(address account) public returns(uint256){
-
-        return balances[account];
-
-    }
-
-    function transfer(address payable to, uint256 value) external returns(bool){
-
-        require( to != address(0));
-        require( balances[msg.sender] >= value);
-
-        emit Transfer(msg.sender, to, value);
-        balances[to] += value;
-        balances[msg.sender] -= value;
-    }
-
-    function allowance(address owner, address spender) external returns(bool){
-
-        uint256 allowance = 0;
-
-        if(allowances[owner][spender] > 0){
-            allowance = allowances[owner][spender];
-        }
-
-        return allowance;
-    }
-
-    function approve(address spender, uint256 value) external returns(bool){
-
-        require( spender != address(0));
-
-        allowances[msg.sender][spender] = value;
-
-        emit Approval(msg.sender, spender, value);
-
-        return true;
-    }
-
-    function transferFrom(address from, address to, uint256 value) external returns(bool){
+    function transferFrom(address from, address to, uint256 tokenId, bytes data) public {
 
         require( from != address(0));
         require( to != address(0));
-        require( allowances[from][to] >= value);
+        require( tokenOwners[tokenId] == from);
 
-        emit Approval( from, to, value);
+        if( msg.sender != from){       
+            require(approvals[from][msg.sender] == tokenId);
+            delete approvals[from][msg.sender]; //remove approval before transanction to prevent reentrancy attack
+        }
 
-        uint256 newValue = allowances[from][to] - value;
-        allowances[from][to] = newValue;
+        emit Transfer(from, to, tokenId);
 
-        balances[from] -= value;
-        balances[to] += value;
+        uint256[] _tokens = balances[from];
 
-        return true;
+        for( uint256 i = 0; i< _tokens.length; i++){
+
+            if( _tokens[i] == tokenId){
+                _tokens = _tokens[_tokens.length-1];
+                _tokens.pop();
+                break; 
+            }
+        }
+        balances[from] = _tokens; // _tokens is an array without tokenId
+        balances[to].push(tokenId);
+        tokenOwners[tokenId] = to;
+
     }
 
+    function approve(address to, uint256 tokenId) public {
+
+        if(msg.sender != tokenOwners[tokenId]){
+
+            address _owner = tokenOwners[tokenId];
+            require( operators[_owner][msg.sender]);
+        }
+
+        approvals[msg.sender][tokenId] = to;
+        emit Approval(msg.sender, to, tokenId);
+    }
+
+    function setApprovalForAll(address operator, bool approved) public {
+
+        require(operator != address(0));
+
+        operators[msg.sender][operator] = approved;
+
+        emit ApprovalForAll(msg.sender, operator, approved);
+
+    }
+
+    function getApproved(uint256 tokenId) public returns(address){
+
+        required(tokenId <= totalAmount);
+
+        address _owner = tokenOwners[tokenId];
+
+        return approvals[_owner][tokenId];
+    }
+
+    function isApprovedForAll(address owner, address operator) public view returns(bool) {
+
+        return operators[owner][operator];
+    }
+   
 }
